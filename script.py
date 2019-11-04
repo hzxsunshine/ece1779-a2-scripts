@@ -2,6 +2,7 @@ import pymysql
 import boto3
 import datetime
 import math
+import config
 
 # connection = pymysql.connect(
 #   host='localhost',
@@ -56,7 +57,7 @@ def get_current_cpu_util():
     client = boto3.client('elbv2')
     cloud_watch = boto3.client("cloudwatch")
     target_group = client.describe_target_health(
-      TargetGroupArn="arn:aws:elasticloadbalancing:us-east-1:935290738939:targetgroup/ECE1779A2-TG/91f7c395a87d8fac")
+      TargetGroupArn=config.Config().TARGET_GROUP_ARN)
 
     sum_cpu_avg = 0
     count = 0
@@ -83,13 +84,85 @@ def get_current_cpu_util():
     return count, sum_cpu_avg/count
 
 
-def start_instance(instance_needs_to_start):
-    return
+######################################
+######################################
+class manager:
+    EC2 = boto3.client('ec2')
+    ELB = boto3.client('elbv2')
+    S3 = boto3.client('s3')
+
+    def create_new_instance(self,min,max):
+        Config = config.Config()
+        response = self.EC2.run_instances(
+            ImageId=Config.AMI_ID,
+            Monitoring={'Enabled': True},
+            Placement={'AvailabilityZone': Config.ZONE},
+            InstanceType=Config.INSTANCE_TYPE,
+            MinCount=min,
+            MaxCount=max,
+            UserData = Config.USERDATA,
+            KeyName=Config.KEYNAME,
+            SubnetId=Config.SUBNETID,
+            SecurityGroupIds=Config.SG,
+            TagSpecifications=[
+                {
+                    'ResourceType': 'instance',
+                    'Tags': [
+                        {
+                            'Key': 'Name',
+                            'Value': Config.EC2NAME
+                        },
+                    ]
+                 },
+            ],
+        )
+        for instance in response['Instances']:
+            print(instance['InstanceId'] + " created!")
+        return response['Instances'][0]['InstanceId']
+
+    def start_instance(self,instance_id):
+        self.EC2.start_instances(InstanceIds=[instance_id])
+
+    def stop_instance(self, instance_id):
+        self.EC2.stop_instances(InstanceIds=[instance_id], Hibernate=False, Force=False)
+
+    def get_stopped_instances(self):
+        ec2_filter = [{'Name': 'tag:Name', 'Values': 'a2'},
+                      {'Name': 'instance-state-name', 'Values': ['stopped']}]
+        return self.EC2.describe_instances(Filters=ec2_filter)
+
+    def get_running_instances(self):
+        ec2_filter = [{'Name': 'tag:Name', 'Values': 'a2'},
+                      {'Name': 'instance-state-name', 'Values': ['running']}]
+        return self.EC2.describe_instances(Filters=ec2_filter)
 
 
-def stop_instance(instance_needs_to_stop):
-    return
+    def start_instance(self,instance_needs_to_start):
+        stopped_instances = self.get_stopped_instances()['Reservations']
+        if stopped_instances:
+            if len(stopped_instances) >= instance_needs_to_start:
+                for i in range(instance_needs_to_start):
+                    new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
+                    self.start_instance(new_instance_id)
+            else:
+                for i in range(len(stopped_instances)):
+                    new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
+                    self.start_instance(new_instance_id)
+                rest = instance_needs_to_start - len(stopped_instances)
+                self.create_new_instance(rest,rest)
+        else:
+            self.create_new_instance(instance_needs_to_start,instance_needs_to_start)
+        return
 
+
+
+    def stop_instance(self,instance_needs_to_stop):
+        ids = self.get_running_instances()['InstanceId'][0:(instance_needs_to_stop-1)]
+        self.EC2.instances.filter(InstanceIds=ids).stop()
+        return
+
+######################################
+######################################
 
 def get_monitor_info(instance_amount):
     cursor = connection.cursor()
@@ -118,11 +191,11 @@ def auto_scaling():
     if instance_amount_actual == instance_amount or retry_time_left == 0:
         if current_cpu_util > threshold_growing:
             instance_needs_to_start = math.ceil(instance_amount * ratio_growing - instance_amount)
-            start_instance(instance_needs_to_start)
+            manager.start_instance(instance_needs_to_start)
             current_instance_amount = instance_amount + instance_needs_to_start
         elif current_cpu_util < threshold_shrinking:
             instance_needs_to_stop = math.ceil(instance_amount/ratio_shrinking)
-            stop_instance(instance_needs_to_stop)
+            manager.stop_instance(instance_needs_to_stop)
             current_instance_amount = instance_amount - instance_needs_to_stop
         else:
             current_instance_amount = instance_amount

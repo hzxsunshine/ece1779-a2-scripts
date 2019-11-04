@@ -4,3 +4,6 @@
 .idea/misc.xml
 .idea/modules.xml
 .idea/vcs.xml
+test.py
+.DS_Store
+__pycache__/config.cpython-37.pyc
