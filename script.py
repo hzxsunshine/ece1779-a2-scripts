@@ -12,7 +12,7 @@ import config
 #   database='ece1779a1')
 
 connection = pymysql.connect(
-  host='ece1779a2.csmeodxl9uyw.us-east-1.rds.amazonaws.com',
+  host='ece1779a2-rds.coc6d8upfz6v.us-east-1.rds.amazonaws.com',
   user='ece1779a2',
   password='password123',
   port=3306,
