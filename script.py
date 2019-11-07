@@ -78,7 +78,10 @@ def get_current_cpu_util():
                                                          StartTime=start_time,
                                                          EndTime=datetime.datetime.utcnow(),
                                                          Period=60)
-        sum_cpu_avg = sum_cpu_avg + cpu_response['Datapoints'][0]['Average']
+        try:
+            sum_cpu_avg = sum_cpu_avg + cpu_response['Datapoints'][0]['Average']
+        except IndexError:
+            pass
         count += 1
 
     return count, sum_cpu_avg/count
@@ -163,6 +166,11 @@ class manager:
     def start_instances(self,instance_needs_to_start):
         target_instance_id = self.get_target_instance()
         expected_instance = len(target_instance_id) + instance_needs_to_start
+
+        ###
+        TempIDs = []
+        ###
+
         if len(target_instance_id) == 10:
             # set a flag that show we cannot grow anymore
             return 0
@@ -176,41 +184,60 @@ class manager:
             if len(stopped_instances) >= instance_needs_to_start:
                 for i in range(instance_needs_to_start):
                     new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
+                    TempIDs.append(new_instance_id)
                     self.start_instance(new_instance_id)
-                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                    while len(status['InstanceStatuses']) < 1:
+                status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
+                while len(status['InstanceStatuses']) < len(TempIDs):
+                    time.sleep(1)
+                    status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                for i in range(len(TempIDs)):
+                    while status['InstanceStatuses'][i]['InstanceState']['Name'] != 'running':
                         time.sleep(1)
-                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                    while status['InstanceStatuses'][0]['InstanceState']['Name'] != 'running':
-                        time.sleep(1)
-                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                    self.register_target(new_instance_id)
+                        status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                for id in TempIDs:
+                    self.register_target(id)
             else:
                 for i in range(len(stopped_instances)):
                     new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
+                    TempIDs.append(new_instance_id)
                     self.start_instance(new_instance_id)
+
                 rest = instance_needs_to_start - len(stopped_instances)
+
                 for i in range(rest):
                     new_instance_id = self.create_new_instance()
-                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                    while len(status['InstanceStatuses']) < 1:
+                    TempIDs.append(new_instance_id)
+
+                status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
+
+                while len(status['InstanceStatuses']) < len(TempIDs):
+                    time.sleep(1)
+                    status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+
+                for i in range(len(TempIDs)):
+                    while status['InstanceStatuses'][i]['InstanceState']['Name'] != 'running':
                         time.sleep(1)
-                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                    while status['InstanceStatuses'][0]['InstanceState']['Name'] != 'running':
-                        time.sleep(1)
-                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                    self.register_target(new_instance_id)
+                        status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+
+                for id in TempIDs:
+                    self.register_target(id)
         else:
             for i in range(instance_needs_to_start):
                 new_instance_id = self.create_new_instance()
-                status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                while len(status['InstanceStatuses']) < 1:
+                TempIDs.append(new_instance_id)
+            status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
+
+            while len(status['InstanceStatuses']) < len(TempIDs):
+                time.sleep(1)
+                status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+
+            for i in range(len(TempIDs)):
+                while status['InstanceStatuses'][i]['InstanceState']['Name'] != 'running':
                     time.sleep(1)
-                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                while status['InstanceStatuses'][0]['InstanceState']['Name'] != 'running':
-                    time.sleep(1)
-                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
-                self.register_target(new_instance_id)
+                    status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+
+            for id in TempIDs:
+                self.register_target(id)
         return instance_needs_to_start
 
 
@@ -240,10 +267,10 @@ def get_monitor_info(instance_amount):
     record = cursor.fetchone()
     print(record)
     if record is None:
-        sql_add = "INSERT INTO script_monitor (current_instance_amount, retry_time) VALUES ({}, 5)".format(instance_amount)
+        sql_add = "INSERT INTO script_monitor (current_instance_amount, retry_time) VALUES ({}, 1)".format(instance_amount)
         cursor.execute(sql_add)
         connection.commit()
-        record = (instance_amount, 5)
+        record = (instance_amount, 1)
     return record
 
 
@@ -256,13 +283,13 @@ def auto_scaling():
     ratio_shrinking = policy[4]
     instance_amount, current_cpu_util = get_current_cpu_util()
     monitor = get_monitor_info(instance_amount)
-    instance_amount_actual = monitor[1]
+    instance_amount_expected = monitor[1]
     retry_time_left = monitor[2]
     print(retry_time_left)
     print("threshold_growing:{0}, shrinking:{1}, ratio growing:{2}, ratio shrinking:{3}".format(threshold_growing, threshold_shrinking, ratio_growing, ratio_shrinking))
-    print("instance amount actual".format(instance_amount_actual))
+    print("instance amount actual{0}".format(instance_amount_expected))
     print('current instance amount is {0}'.format(instance_amount))
-    if instance_amount_actual == instance_amount or retry_time_left == 0:
+    if instance_amount_expected == instance_amount or retry_time_left == 0:
         if current_cpu_util > threshold_growing:
             if instance_amount < 10:
                 instance_needs_to_start = math.ceil(instance_amount * ratio_growing - instance_amount)
@@ -279,7 +306,7 @@ def auto_scaling():
                 current_instance_amount = instance_amount
         else:
             current_instance_amount = instance_amount
-        sql_update = "UPDATE script_monitor SET current_instance_amount={}, retry_time=5 WHERE id=1".format(current_instance_amount)
+        sql_update = "UPDATE script_monitor SET current_instance_amount={}, retry_time=1 WHERE id=1".format(current_instance_amount)
 
     else:
         sql_update = "UPDATE script_monitor SET retry_time={} WHERE id=1".format(retry_time_left-1)
