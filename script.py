@@ -217,7 +217,7 @@ class manager:
                 self.stop_instance(target_instance_id[0])
             return len(target_instance_id)-1
         else:
-            for i in range(len(instance_needs_to_stop)):
+            for i in range(instance_needs_to_stop):
                 self.deregister_target(target_instance_id[0])
                 self.stop_instance(target_instance_id[0])
                 time.sleep(1)
