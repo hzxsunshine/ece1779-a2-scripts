@@ -253,13 +253,15 @@ def auto_scaling():
     print(retry_time_left)
     if instance_amount_actual == instance_amount or retry_time_left == 0:
         if current_cpu_util > threshold_growing:
-            instance_needs_to_start = math.ceil(instance_amount * ratio_growing - instance_amount)
-            instance_needs_to_start = m.start_instances(instance_needs_to_start)
-            current_instance_amount = instance_amount + instance_needs_to_start
+            if instance_amount < 10:
+                instance_needs_to_start = math.ceil(instance_amount * ratio_growing - instance_amount)
+                instance_needs_to_start = m.start_instances(instance_needs_to_start)
+                current_instance_amount = instance_amount + instance_needs_to_start
         elif current_cpu_util < threshold_shrinking:
-            instance_needs_to_stop = math.ceil(instance_amount/ratio_shrinking)
-            instance_needs_to_stop = m.stop_instances(instance_needs_to_stop)
-            current_instance_amount = instance_amount - instance_needs_to_stop
+            if instance_amount > 1:
+                instance_needs_to_stop = math.ceil(instance_amount/ratio_shrinking)
+                instance_needs_to_stop = m.stop_instances(instance_needs_to_stop)
+                current_instance_amount = instance_amount - instance_needs_to_stop
         else:
             current_instance_amount = instance_amount
         sql_update = "UPDATE script_monitor SET current_instance_amount={}, retry_time=5 WHERE id=1".format(current_instance_amount)
