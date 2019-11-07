@@ -259,6 +259,9 @@ def auto_scaling():
     instance_amount_actual = monitor[1]
     retry_time_left = monitor[2]
     print(retry_time_left)
+    print("threshold_growing:{0}, shrinking:{1}, ratio growing:{2}, ratio shrinking:{3}".format(threshold_growing, threshold_shrinking, ratio_growing, ratio_shrinking))
+    print("instance amount actual".format(instance_amount_actual))
+    print('current instance amount is {0}'.format(instance_amount))
     if instance_amount_actual == instance_amount or retry_time_left == 0:
         if current_cpu_util > threshold_growing:
             if instance_amount < 10:
