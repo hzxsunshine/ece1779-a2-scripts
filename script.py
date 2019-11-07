@@ -2,7 +2,7 @@ import pymysql
 import boto3
 import datetime
 import math
-import config
+import time
 
 # connection = pymysql.connect(
 #   host='localhost',
@@ -57,7 +57,7 @@ def get_current_cpu_util():
     client = boto3.client('elbv2')
     cloud_watch = boto3.client("cloudwatch")
     target_group = client.describe_target_health(
-      TargetGroupArn=config.Config().TARGET_GROUP_ARN)
+      TargetGroupArn="arn:aws:elasticloadbalancing:us-east-1:479498022568:targetgroup/ECE1779A2-TG/b7c975c015d56e4a")
 
     sum_cpu_avg = 0
     count = 0
@@ -91,26 +91,36 @@ class manager:
     ELB = boto3.client('elbv2')
     S3 = boto3.client('s3')
 
-    def create_new_instance(self,min,max):
-        Config = config.Config()
+    def get_target_instance(self):
+        target_group = self.ELB.describe_target_health(TargetGroupArn="arn:aws:elasticloadbalancing:us-east-1:479498022568:targetgroup/ECE1779A2-TG/b7c975c015d56e4a")
+        instances_id = []
+        if target_group['TargetHealthDescriptions']:
+            for target in target_group['TargetHealthDescriptions']:
+                if target['TargetHealth']['State'] != 'draining':
+                    instances_id.append(target['Target']['Id'])
+        return instances_id
+
+    def create_new_instance(self):
         response = self.EC2.run_instances(
-            ImageId=Config.AMI_ID,
+            ImageId="ami-0353607cefbd075a3",
             Monitoring={'Enabled': True},
-            Placement={'AvailabilityZone': Config.ZONE},
-            InstanceType=Config.INSTANCE_TYPE,
-            MinCount=min,
-            MaxCount=max,
-            UserData = Config.USERDATA,
-            KeyName=Config.KEYNAME,
-            SubnetId=Config.SUBNETID,
-            SecurityGroupIds=Config.SG,
+            Placement={'AvailabilityZone': "us-east-1a"},
+            InstanceType="t2.small",
+            MinCount=1,
+            MaxCount=1,
+            UserData = '#!/bin/bash\n' \
+                        'screen\n' \
+                        '/home/ubuntu/Desktop/start.sh',
+            KeyName='ece1779a2',
+            SubnetId="subnet-d32d11fd",
+            SecurityGroupIds=['sg-091c7fa2c83cd95cd'],
             TagSpecifications=[
                 {
                     'ResourceType': 'instance',
                     'Tags': [
                         {
                             'Key': 'Name',
-                            'Value': Config.EC2NAME
+                            'Value': 'a2'
                         },
                     ]
                  },
@@ -131,15 +141,38 @@ class manager:
                       {'Name': 'instance-state-name', 'Values': ['stopped']}]
         return self.EC2.describe_instances(Filters=ec2_filter)
 
-    def get_running_instances(self):
-        ec2_filter = [{'Name': 'tag:Name', 'Values': 'a2'},
-                      {'Name': 'instance-state-name', 'Values': ['running']}]
-        return self.EC2.describe_instances(Filters=ec2_filter)
+
+    def register_target(self, instance_id):
+        target_group="arn:aws:elasticloadbalancing:us-east-1:479498022568:targetgroup/ECE1779A2-TG/b7c975c015d56e4a"
+        target = [{'Id': instance_id,
+                   'Port': 5000}]
+        self.ELB.register_targets(TargetGroupArn = target_group, Targets = target)
 
 
-    def start_instance(self,instance_needs_to_start):
+    def deregister_target(self, instance_id):
+        target_group = "arn:aws:elasticloadbalancing:us-east-1:479498022568:targetgroup/ECE1779A2-TG/b7c975c015d56e4a"
+        target = [{'Id': instance_id}]
+        self.ELB.deregister_targets(TargetGroupArn=target_group,
+                                    Targets=target)
+
+
+    def terminate_instance(self, instance_id):
+        self.EC2.terminate_instances(InstanceIds=[instance_id])
+
+
+    def start_instances(self,instance_needs_to_start):
+        target_instance_id = self.get_target_instance()
+        expected_instance = len(target_instance_id) + instance_needs_to_start
+        if len(target_instance_id) == 10:
+            # set a flag that show we cannot grow anymore
+            return False
+        #We can only increase the total number of intance to 10
+        if expected_instance > 10:
+            instance_needs_to_start = 10 - len(target_instance_id)
+
         stopped_instances = self.get_stopped_instances()['Reservations']
         if stopped_instances:
+            # if there exists stopped instances
             if len(stopped_instances) >= instance_needs_to_start:
                 for i in range(instance_needs_to_start):
                     new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
@@ -149,17 +182,45 @@ class manager:
                     new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
                     self.start_instance(new_instance_id)
                 rest = instance_needs_to_start - len(stopped_instances)
-                self.create_new_instance(rest,rest)
+                for i in range(rest):
+                    new_instance_id = self.create_new_instance()
+                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                    while len(status['InstanceStatuses']) < 1:
+                        time.sleep(1)
+                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                    while status['InstanceStatuses'][0]['InstanceState']['Name'] != 'running':
+                        time.sleep(1)
+                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                    self.register_target(new_instance_id)
         else:
-            self.create_new_instance(instance_needs_to_start,instance_needs_to_start)
-        return
+            for i in range(instance_needs_to_start):
+                new_instance_id = self.create_new_instance()
+                status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                while len(status['InstanceStatuses']) < 1:
+                    time.sleep(1)
+                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                while status['InstanceStatuses'][0]['InstanceState']['Name'] != 'running':
+                    time.sleep(1)
+                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                self.register_target(new_instance_id)
+        return True
 
 
 
-    def stop_instance(self,instance_needs_to_stop):
-        ids = self.get_running_instances()['InstanceId'][0:(instance_needs_to_stop-1)]
-        self.EC2.instances.filter(InstanceIds=ids).stop()
-        return
+    def stop_instances(self,instance_needs_to_stop):
+        target_instance_id = self.get_target_instance()
+        if len(target_instance_id) <= 1:
+            return False
+        if instance_needs_to_stop >= len(target_instance_id):
+            for i in range(len(target_instance_id)-1):
+                self.deregister_target(target_instance_id[0])
+                self.stop_instance(target_instance_id[0])
+        else:
+            for i in range(len(instance_needs_to_stop)):
+                self.deregister_target(target_instance_id[0])
+                self.stop_instance(target_instance_id[0])
+                time.sleep(1)
+        return True
 
 ######################################
 ######################################
@@ -190,12 +251,15 @@ def auto_scaling():
     print(retry_time_left)
     if instance_amount_actual == instance_amount or retry_time_left == 0:
         if current_cpu_util > threshold_growing:
-            instance_needs_to_start = math.ceil(instance_amount * ratio_growing - instance_amount)
-            manager.start_instance(instance_needs_to_start)
+            instance_needs_to_start = math.floor(instance_amount * ratio_growing - instance_amount)
+            if not manager.start_instances(instance_needs_to_start):
+                ###这里写点啥中断程序？
+                raise Exception('The worker pool is limited by 10. Cannot grow it up.')
             current_instance_amount = instance_amount + instance_needs_to_start
         elif current_cpu_util < threshold_shrinking:
-            instance_needs_to_stop = math.ceil(instance_amount/ratio_shrinking)
-            manager.stop_instance(instance_needs_to_stop)
+            instance_needs_to_stop = math.floor(instance_amount/ratio_shrinking)
+            if not manager.stop_instances(instance_needs_to_stop):
+                raise Exception('The worker pool is limited by 1. Cannot shrink more.')
             current_instance_amount = instance_amount - instance_needs_to_stop
         else:
             current_instance_amount = instance_amount
