@@ -239,6 +239,7 @@ def get_monitor_info(instance_amount):
 
 
 def auto_scaling():
+    m = manager()
     policy = get_auto_scaling_policy()
     threshold_growing = policy[1]
     threshold_shrinking = policy[2]
@@ -252,13 +253,13 @@ def auto_scaling():
     if instance_amount_actual == instance_amount or retry_time_left == 0:
         if current_cpu_util > threshold_growing:
             instance_needs_to_start = math.floor(instance_amount * ratio_growing - instance_amount)
-            if not manager.start_instances(instance_needs_to_start):
+            if not m.start_instances(instance_needs_to_start):
                 ###这里写点啥中断程序？
                 raise Exception('The worker pool is limited by 10. Cannot grow it up.')
             current_instance_amount = instance_amount + instance_needs_to_start
         elif current_cpu_util < threshold_shrinking:
             instance_needs_to_stop = math.floor(instance_amount/ratio_shrinking)
-            if not manager.stop_instances(instance_needs_to_stop):
+            if not m.stop_instances(instance_needs_to_stop):
                 raise Exception('The worker pool is limited by 1. Cannot shrink more.')
             current_instance_amount = instance_amount - instance_needs_to_stop
         else:
