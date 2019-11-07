@@ -137,7 +137,7 @@ class manager:
         self.EC2.stop_instances(InstanceIds=[instance_id], Hibernate=False, Force=False)
 
     def get_stopped_instances(self):
-        ec2_filter = [{'Name': 'tag:Name', 'Values': 'a2'},
+        ec2_filter = [{'Name': 'tag:Name', 'Values': ['a2']},
                       {'Name': 'instance-state-name', 'Values': ['stopped']}]
         return self.EC2.describe_instances(Filters=ec2_filter)
 
@@ -177,6 +177,14 @@ class manager:
                 for i in range(instance_needs_to_start):
                     new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
                     self.start_instance(new_instance_id)
+                    status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                    while len(status['InstanceStatuses']) < 1:
+                        time.sleep(1)
+                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                    while status['InstanceStatuses'][0]['InstanceState']['Name'] != 'running':
+                        time.sleep(1)
+                        status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
+                    self.register_target(new_instance_id)
             else:
                 for i in range(len(stopped_instances)):
                     new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
