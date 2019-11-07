@@ -189,11 +189,11 @@ class manager:
                 status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
                 while len(status['InstanceStatuses']) < len(TempIDs):
                     time.sleep(1)
-                    status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                    status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
                 for i in range(len(TempIDs)):
                     while status['InstanceStatuses'][i]['InstanceState']['Name'] != 'running':
                         time.sleep(1)
-                        status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                        status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
                 for id in TempIDs:
                     self.register_target(id)
             else:
@@ -212,12 +212,12 @@ class manager:
 
                 while len(status['InstanceStatuses']) < len(TempIDs):
                     time.sleep(1)
-                    status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                    status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
 
                 for i in range(len(TempIDs)):
                     while status['InstanceStatuses'][i]['InstanceState']['Name'] != 'running':
                         time.sleep(1)
-                        status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                        status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
 
                 for id in TempIDs:
                     self.register_target(id)
@@ -229,12 +229,12 @@ class manager:
 
             while len(status['InstanceStatuses']) < len(TempIDs):
                 time.sleep(1)
-                status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
 
             for i in range(len(TempIDs)):
                 while status['InstanceStatuses'][i]['InstanceState']['Name'] != 'running':
                     time.sleep(1)
-                    status = self.EC2.describe_instance_status(InstanceIds=[TempIDs])
+                    status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
 
             for id in TempIDs:
                 self.register_target(id)
