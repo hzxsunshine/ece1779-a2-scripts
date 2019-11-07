@@ -165,7 +165,7 @@ class manager:
         expected_instance = len(target_instance_id) + instance_needs_to_start
         if len(target_instance_id) == 10:
             # set a flag that show we cannot grow anymore
-            return False
+            return 0
         #We can only increase the total number of intance to 10
         if expected_instance > 10:
             instance_needs_to_start = 10 - len(target_instance_id)
@@ -203,24 +203,25 @@ class manager:
                     time.sleep(1)
                     status = self.EC2.describe_instance_status(InstanceIds=[new_instance_id])
                 self.register_target(new_instance_id)
-        return True
+        return instance_needs_to_start
 
 
 
     def stop_instances(self,instance_needs_to_stop):
         target_instance_id = self.get_target_instance()
         if len(target_instance_id) <= 1:
-            return False
+            return 0
         if instance_needs_to_stop >= len(target_instance_id):
             for i in range(len(target_instance_id)-1):
                 self.deregister_target(target_instance_id[0])
                 self.stop_instance(target_instance_id[0])
+            return len(target_instance_id)-1
         else:
             for i in range(len(instance_needs_to_stop)):
                 self.deregister_target(target_instance_id[0])
                 self.stop_instance(target_instance_id[0])
                 time.sleep(1)
-        return True
+        return instance_needs_to_stop
 
 ######################################
 ######################################
@@ -252,15 +253,12 @@ def auto_scaling():
     print(retry_time_left)
     if instance_amount_actual == instance_amount or retry_time_left == 0:
         if current_cpu_util > threshold_growing:
-            instance_needs_to_start = math.floor(instance_amount * ratio_growing - instance_amount)
-            if not m.start_instances(instance_needs_to_start):
-                ###这里写点啥中断程序？
-                raise Exception('The worker pool is limited by 10. Cannot grow it up.')
+            instance_needs_to_start = math.ceil(instance_amount * ratio_growing - instance_amount)
+            instance_needs_to_start = m.start_instances(instance_needs_to_start)
             current_instance_amount = instance_amount + instance_needs_to_start
         elif current_cpu_util < threshold_shrinking:
-            instance_needs_to_stop = math.floor(instance_amount/ratio_shrinking)
-            if not m.stop_instances(instance_needs_to_stop):
-                raise Exception('The worker pool is limited by 1. Cannot shrink more.')
+            instance_needs_to_stop = math.ceil(instance_amount/ratio_shrinking)
+            instance_needs_to_stop = m.stop_instances(instance_needs_to_stop)
             current_instance_amount = instance_amount - instance_needs_to_stop
         else:
             current_instance_amount = instance_amount
