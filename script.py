@@ -185,7 +185,7 @@ class manager:
             # if there exists stopped instances
             if len(stopped_instances) >= instance_needs_to_start:
                 for i in range(instance_needs_to_start):
-                    new_instance_id = stopped_instances[0]['Instances'][i]['InstanceId']
+                    new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
                     TempIDs.append(new_instance_id)
                     self.start_instance(new_instance_id)
                 status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
@@ -200,7 +200,7 @@ class manager:
                     self.register_target(id)
             else:
                 for i in range(len(stopped_instances)):
-                    new_instance_id = stopped_instances[0]['Instances'][i]['InstanceId']
+                    new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
                     TempIDs.append(new_instance_id)
                     self.start_instance(new_instance_id)
 
