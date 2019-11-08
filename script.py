@@ -61,8 +61,10 @@ def get_current_cpu_util():
 
     sum_cpu_avg = 0
     count = 0
+    id = []
     for target in target_group['TargetHealthDescriptions']:
         instance_id = target['Target']['Id']
+        id.append(instance_id)
         CPUUtilization_REQUEST["metrics"][0][3] = instance_id
         start_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
         dimensions = [
@@ -84,7 +86,7 @@ def get_current_cpu_util():
             pass
         count += 1
 
-    return count, sum_cpu_avg/count
+    return count, sum_cpu_avg/count, id
 
 
 ######################################
@@ -281,12 +283,13 @@ def auto_scaling():
     threshold_shrinking = policy[2]
     ratio_growing = policy[3]
     ratio_shrinking = policy[4]
-    instance_amount, current_cpu_util = get_current_cpu_util()
+    instance_amount, current_cpu_util, instanceId = get_current_cpu_util()
     monitor = get_monitor_info(instance_amount)
     instance_amount_expected = monitor[1]
     retry_time_left = monitor[2]
     print(current_cpu_util)
     print(retry_time_left)
+    print("Instances are {0}".format(instanceId))
     print("threshold_growing:{0}, shrinking:{1}, ratio growing:{2}, ratio shrinking:{3}".format(threshold_growing, threshold_shrinking, ratio_growing, ratio_shrinking))
     print("instance amount actual{0}".format(instance_amount_expected))
     print('current instance amount is {0}'.format(instance_amount))
