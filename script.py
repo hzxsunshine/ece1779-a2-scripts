@@ -81,7 +81,7 @@ def get_current_cpu_util():
                                                          EndTime=datetime.datetime.utcnow(),
                                                          Period=60)
         try:
-            sum_cpu_avg = sum_cpu_avg + cpu_response['Datapoints'][0]['Average']
+            sum_cpu_avg = sum_cpu_avg + cpu_response['Datapoints'][-1]['Average']
         except IndexError:
             pass
         count += 1
