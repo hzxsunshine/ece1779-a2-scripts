@@ -183,7 +183,7 @@ class manager:
             # if there exists stopped instances
             if len(stopped_instances) >= instance_needs_to_start:
                 for i in range(instance_needs_to_start):
-                    new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
+                    new_instance_id = stopped_instances[0]['Instances'][i]['InstanceId']
                     TempIDs.append(new_instance_id)
                     self.start_instance(new_instance_id)
                 status = self.EC2.describe_instance_status(InstanceIds=TempIDs)
@@ -198,7 +198,7 @@ class manager:
                     self.register_target(id)
             else:
                 for i in range(len(stopped_instances)):
-                    new_instance_id = stopped_instances[i]['Instances'][0]['InstanceId']
+                    new_instance_id = stopped_instances[0]['Instances'][i]['InstanceId']
                     TempIDs.append(new_instance_id)
                     self.start_instance(new_instance_id)
 
@@ -285,6 +285,7 @@ def auto_scaling():
     monitor = get_monitor_info(instance_amount)
     instance_amount_expected = monitor[1]
     retry_time_left = monitor[2]
+    print(current_cpu_util)
     print(retry_time_left)
     print("threshold_growing:{0}, shrinking:{1}, ratio growing:{2}, ratio shrinking:{3}".format(threshold_growing, threshold_shrinking, ratio_growing, ratio_shrinking))
     print("instance amount actual{0}".format(instance_amount_expected))
