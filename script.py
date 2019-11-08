@@ -66,7 +66,7 @@ def get_current_cpu_util():
         instance_id = target['Target']['Id']
         id.append(instance_id)
         CPUUtilization_REQUEST["metrics"][0][3] = instance_id
-        start_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+        start_time = (datetime.datetime.utcnow() - datetime.timedelta(minutes=30)).isoformat()
         dimensions = [
                        {
                          'Name': 'InstanceId',
@@ -78,15 +78,16 @@ def get_current_cpu_util():
                                                          Dimensions=dimensions,
                                                          Statistics=['Average'],
                                                          StartTime=start_time,
-                                                         EndTime=datetime.datetime.utcnow(),
+                                                         EndTime=datetime.datetime.utcnow().isoformat(),
                                                          Period=60)
         try:
             sum_cpu_avg = sum_cpu_avg + cpu_response['Datapoints'][-1]['Average']
         except IndexError:
             pass
         count += 1
+        lasttime = cpu_response['Datapoints'][-1]['Timestamp']
 
-    return count, sum_cpu_avg/count, id
+    return count, sum_cpu_avg/count, id, lasttime
 
 
 ######################################
@@ -283,11 +284,12 @@ def auto_scaling():
     threshold_shrinking = policy[2]
     ratio_growing = policy[3]
     ratio_shrinking = policy[4]
-    instance_amount, current_cpu_util, instanceId = get_current_cpu_util()
+    instance_amount, current_cpu_util, instanceId, lasttime = get_current_cpu_util()
     monitor = get_monitor_info(instance_amount)
     instance_amount_expected = monitor[1]
     retry_time_left = monitor[2]
     print(current_cpu_util)
+    print("Time is {}".format(lasttime))
     print(retry_time_left)
     print("Instances are {0}".format(instanceId))
     print("threshold_growing:{0}, shrinking:{1}, ratio growing:{2}, ratio shrinking:{3}".format(threshold_growing, threshold_shrinking, ratio_growing, ratio_shrinking))
