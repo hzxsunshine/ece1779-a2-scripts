@@ -66,7 +66,7 @@ def get_current_cpu_util():
         instance_id = target['Target']['Id']
         id.append(instance_id)
         CPUUtilization_REQUEST["metrics"][0][3] = instance_id
-        start_time = (datetime.datetime.utcnow() - datetime.timedelta(minutes=30)).isoformat()
+        start_time = (datetime.datetime.utcnow() - datetime.timedelta(minutes=2)).isoformat()
         dimensions = [
                        {
                          'Name': 'InstanceId',
@@ -81,7 +81,7 @@ def get_current_cpu_util():
                                                          EndTime=datetime.datetime.utcnow().isoformat(),
                                                          Period=60)
         try:
-            sum_cpu_avg = sum_cpu_avg + cpu_response['Datapoints'][-1]['Average']
+            sum_cpu_avg = sum_cpu_avg + cpu_response['Datapoints'][0]['Average']
         except IndexError:
             pass
         count += 1
