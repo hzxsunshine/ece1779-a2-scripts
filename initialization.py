@@ -158,18 +158,13 @@ class manager:
 
     def stop_instances(self, instance_needs_to_stop):
         target_instance_id = self.get_target_instance()
-        if len(target_instance_id) <= 1:
+        if len(target_instance_id) < 1:
             return 0
         if instance_needs_to_stop >= len(target_instance_id):
             for i in range(len(target_instance_id)-1):
                 self.deregister_target(target_instance_id[i])
                 self.stop_instance(target_instance_id[i])
             return len(target_instance_id)-1
-        else:
-            for i in range(instance_needs_to_stop):
-                self.deregister_target(target_instance_id[i])
-                self.stop_instance(target_instance_id[i])
-                time.sleep(1)
         return instance_needs_to_stop
 
 
