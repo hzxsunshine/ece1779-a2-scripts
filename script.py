@@ -270,10 +270,10 @@ def get_monitor_info(instance_amount):
     record = cursor.fetchone()
     print(record)
     if record is None:
-        sql_add = "INSERT INTO script_monitor (current_instance_amount, retry_time) VALUES ({}, 1)".format(instance_amount)
+        sql_add = "INSERT INTO script_monitor (current_instance_amount, retry_time) VALUES ({}, 3)".format(instance_amount)
         cursor.execute(sql_add)
         connection.commit()
-        record = (instance_amount, 1)
+        record = (instance_amount, 3)
     return record
 
 
@@ -312,7 +312,7 @@ def auto_scaling():
                 current_instance_amount = instance_amount
         else:
             current_instance_amount = instance_amount
-        sql_update = "UPDATE script_monitor SET current_instance_amount={}, retry_time=1 WHERE id=1".format(current_instance_amount)
+        sql_update = "UPDATE script_monitor SET current_instance_amount={}, retry_time=3 WHERE id=1".format(current_instance_amount)
 
     else:
         sql_update = "UPDATE script_monitor SET retry_time={} WHERE id=1".format(retry_time_left-1)
